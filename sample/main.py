@@ -3,20 +3,20 @@ import flask.views
 from gumo.logging import LoggerManager
 from gumo.logging import GumoLogger
 
-logger_manager = LoggerManager()
+logger_manager = LoggerManager(
+    fetch_logger_context_func=lambda : flask.g.logger_context
+)
 
 app = flask.Flask('app')
 
-
-def getLogger() -> GumoLogger:
-    if 'logger' in flask.g:
-        return flask.g.logger
-
-    return logger_manager.getLogger()
+logger = logger_manager.getLogger()
 
 
 @app.before_request
 def on_before_request():
+    flask.g.logger_context = logger_manager.getLoggerContext(
+        trace_header=flask.request.headers.get('X-Cloud-Trace-Context')
+    )
     flask.g.logger = logger_manager.getLogger(
         trace_header=flask.request.headers.get('X-Cloud-Trace-Context')
     )
@@ -25,13 +25,15 @@ def on_before_request():
 @app.after_request
 def on_after_request(response):
     logger_manager.flush()
+    # import time
+    # time.sleep(1)
     return response
 
 
 @app.route('/')
 def root():
-    flask.g.logger.info('Hello. This is test log message.')
-    flask.g.logger.debug('Hello. This is test DEBUG log message.')
+    logger.info('Hello. This is test log message.')
+    logger.debug('Hello. This is test DEBUG log message.')
     return 'Hello'
 
 
