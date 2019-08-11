@@ -2,7 +2,7 @@ import setuptools
 
 
 name = 'gumo-logging'
-version = '0.0.1a1'
+version = '0.0.1'
 description = 'Gumo Logging Library'
 dependencies = []
 
