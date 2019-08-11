@@ -5,9 +5,16 @@ import sys
 import inspect
 import traceback
 import datetime
+import dataclasses
 
 from typing import Optional
 from typing import Tuple
+from typing import Callable
+
+@dataclasses.dataclass(frozen=True)
+class LoggerContext:
+    trace: Optional[str] = None
+    span_id: Optional[str] = None
 
 
 class GumoLogger:
@@ -23,16 +30,17 @@ class GumoLogger:
             project_id: str,
             default_logger: logging.Logger,
             error_logger: logging.Logger,
-            trace: Optional[str] = None,
-            span_id: Optional[str] = None,
-            structured_log_enabled: Optional[bool] = True
+            logger_context: LoggerContext,
+            structured_log_enabled: Optional[bool] = True,
+            fetch_logger_context_func: Optional[Callable[[], str]] = None,
     ):
         self._project_id = project_id
         self._default_logger = default_logger
         self._error_logger = error_logger
-        self._trace = trace
-        self._span_id = span_id
+
+        self._logger_context = logger_context
         self._structured_log_enabled = structured_log_enabled
+        self._fetch_logger_context_func = fetch_logger_context_func
 
         self._cwd = os.getcwd() + '/'
 
@@ -52,14 +60,15 @@ class GumoLogger:
 
     def _build_log_payload(self, level, msg) -> dict:
         j = {
+            'timestamp': datetime.datetime.utcnow().isoformat() + 'Z',
             'Message': self._build_message_text(msg),
             'severity': self.getLevelName(level),
         }
 
-        if self._trace is not None:
-            j['logging.googleapis.com/trace'] = self._trace
-        if self._span_id is not None:
-            j['logging.googleapis.com/spanId'] = self._span_id
+        if self._logger_context.trace is not None:
+            j['logging.googleapis.com/trace'] = self._logger_context.trace
+        if self._logger_context.span_id is not None:
+            j['logging.googleapis.com/spanId'] = self._logger_context.span_id
 
         caller = self._find_caller()
         if caller is not None:
@@ -90,7 +99,19 @@ class GumoLogger:
         else:
             return self._log_text_formatter(d)
 
+    def _fetch_logger_context(self):
+        if self._fetch_logger_context_func is None:
+            return
+
+        context = self._fetch_logger_context_func()
+        if context is None:
+            return
+        self._logger_context = context
+
+
     def _log(self, level, msg):
+        self._fetch_logger_context()
+
         payload = self._build_log_payload(level=level, msg=msg)
         if level >= self.ERROR:
             self._error_logger.log(level, self._formatter(payload))
@@ -156,8 +177,12 @@ class LoggerManager:
     FATAL = logging.FATAL
     CRITICAL = logging.CRITICAL
 
-    def __init__(self):
+    def __init__(
+            self,
+            fetch_logger_context_func: Optional[Callable[[], str]] = None,
+    ):
         self._project_id = os.environ.get('GOOGLE_CLOUD_PROJECT', '<unknown-project>')
+        self._fetch_logger_context_func = fetch_logger_context_func
 
         is_google_platform = os.environ.get('GAE_DEPLOYMENT_ID') is not None
         self._structured_log_enabled = is_google_platform
@@ -212,14 +237,21 @@ class LoggerManager:
 
         return (trace, span_id)
 
-    def getLogger(self, trace_header: Optional[str] = None) -> GumoLogger:
+    def getLoggerContext(self, trace_header: Optional[str] = None) -> LoggerContext:
         trace, span_id = self._build_trace_and_span(trace_header)
+        return LoggerContext(
+            trace=trace,
+            span_id=span_id,
+        )
+
+    def getLogger(self, trace_header: Optional[str] = None) -> GumoLogger:
+        logger_context = self.getLoggerContext(trace_header=trace_header)
 
         return GumoLogger(
             project_id=self._project_id,
             default_logger=self._default_logger,
             error_logger=self._error_logger,
-            trace=trace,
-            span_id=span_id,
+            logger_context=logger_context,
             structured_log_enabled=self._structured_log_enabled,
+            fetch_logger_context_func=self._fetch_logger_context_func,
         )
