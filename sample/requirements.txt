@@ -1,2 +1,2 @@
 flask
-gumo-logging==0.0.2a2
+gumo-logging==0.0.2
