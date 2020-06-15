@@ -11,6 +11,7 @@ from typing import Optional
 from typing import Tuple
 from typing import Callable
 
+
 @dataclasses.dataclass(frozen=True)
 class LoggerContext:
     trace: Optional[str] = None
@@ -51,10 +52,7 @@ class GumoLogger:
     def _build_message_text(self, msg) -> str:
         if isinstance(msg, BaseException):
             err: BaseException = msg
-            return '\n'.join([
-                repr(err),
-                traceback.format_exc()
-            ])
+            return "\n".join(traceback.format_exception(type(err), err, err.__traceback__))
 
         return str(msg)
 
