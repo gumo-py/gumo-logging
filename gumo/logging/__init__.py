@@ -11,6 +11,7 @@ from typing import Optional
 from typing import Tuple
 from typing import Callable
 
+
 @dataclasses.dataclass(frozen=True)
 class LoggerContext:
     trace: Optional[str] = None
@@ -51,10 +52,7 @@ class GumoLogger:
     def _build_message_text(self, msg) -> str:
         if isinstance(msg, BaseException):
             err: BaseException = msg
-            return '\n'.join([
-                repr(err),
-                traceback.format_exc()
-            ])
+            return "\n".join(traceback.format_exception(type(err), err, err.__traceback__))
 
         return str(msg)
 
@@ -65,10 +63,11 @@ class GumoLogger:
             'severity': self.getLevelName(level),
         }
 
-        if self._logger_context.trace is not None:
-            j['logging.googleapis.com/trace'] = self._logger_context.trace
-        if self._logger_context.span_id is not None:
-            j['logging.googleapis.com/spanId'] = self._logger_context.span_id
+        if self._logger_context:
+            if self._logger_context.trace is not None:
+                j['logging.googleapis.com/trace'] = self._logger_context.trace
+            if self._logger_context.span_id is not None:
+                j['logging.googleapis.com/spanId'] = self._logger_context.span_id
 
         caller = self._find_caller()
         if caller is not None:
