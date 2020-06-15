@@ -65,10 +65,11 @@ class GumoLogger:
             'severity': self.getLevelName(level),
         }
 
-        if self._logger_context.trace is not None:
-            j['logging.googleapis.com/trace'] = self._logger_context.trace
-        if self._logger_context.span_id is not None:
-            j['logging.googleapis.com/spanId'] = self._logger_context.span_id
+        if self._logger_context:
+            if self._logger_context.trace is not None:
+                j['logging.googleapis.com/trace'] = self._logger_context.trace
+            if self._logger_context.span_id is not None:
+                j['logging.googleapis.com/spanId'] = self._logger_context.span_id
 
         caller = self._find_caller()
         if caller is not None:
